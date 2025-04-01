@@ -1,10 +1,4 @@
-from agents import Agent, Runner
-
-agent = Agent(name="Assistant", instructions="You are a helpful assistant")
-
-result = Runner.run_sync(agent, "Write a haiku about recursion in programming.")
-print(result.final_output)
-
+import httpx
 # ------------------------------代码------------------------------
 # 旅游智能体
 from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings, handoff
@@ -13,8 +7,13 @@ import asyncio
 import json
 from pydantic import BaseModel, ValidationError
 
+http_client = httpx.AsyncClient(verify=False)
 # 设置OpenAI客户端
-openai_client = AsyncOpenAI()
+openai_client = AsyncOpenAI(
+    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+    api_key="sk-5d0df6fb5e864785947f2e4b60adb763",
+    http_client=http_client
+)
 
 
 # 最终旅行计划的输出类型
@@ -42,7 +41,7 @@ planner_agent = Agent(
     重要：提供初步行程后，你必须交接给"当地专家"获取更地道的体验建议。不要等待用户回应，直接使用consult_local_expert工具交接。
     """),
     model=OpenAIChatCompletionsModel(
-        model="gpt-4o-mini",
+        model="qwen-72b-chat",
         openai_client=openai_client
     ),
     model_settings=ModelSettings(temperature=0.7)
@@ -64,7 +63,7 @@ local_agent = Agent(
     当你完成当地推荐后，请交接给"旅行计划编译器"以整合所有建议。
     """),
     model=OpenAIChatCompletionsModel(
-        model="gpt-4o-mini",
+        model="qwen-72b-chat",
         openai_client=openai_client
     )
 )
@@ -84,7 +83,7 @@ language_agent = Agent(
     完成语言指南后，请交接给"旅行计划编译器"以整合所有建议成为完整的旅行计划。
     """),
     model=OpenAIChatCompletionsModel(
-        model="gpt-4o-mini",
+        model="qwen-72b-chat",
         openai_client=openai_client
     )
 )
@@ -116,7 +115,7 @@ summary_agent = Agent(
     """,
     output_type=TravelPlan,
     model=OpenAIChatCompletionsModel(
-        model="gpt-4o-mini",
+        model="qwen-72b-chat",
         openai_client=openai_client
     )
 )
