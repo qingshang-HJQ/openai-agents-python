@@ -1,68 +1,47 @@
-import  os
-import asyncio
-from typing import Optional
-from contextlib import AsyncExitStack
-
-from mcp import ClientSession, StdioServerParameters
-from mcp.client.stdio import stdio_client
-
-from anthropic import Anthropic
-from dotenv import load_dotenv
+import  asyncio
+import os
+import shutil
 import httpx
-# ------------------------------代码------------------------------
-# 旅游智能体
-from agents import Agent, Runner, AsyncOpenAI, OpenAIChatCompletionsModel, ModelSettings, handoff
-from agents.extensions.handoff_prompt import prompt_with_handoff_instructions
-import asyncio
-import json
-from pydantic import BaseModel, ValidationError
+from agents import Agent, OpenAIChatCompletionsModel, Runner
+from agents.mcp import MCPServerStdio
+from openai import AsyncOpenAI
+from openai.lib.streaming.responses import ResponseTextDeltaEvent
 
-from src.agents import gen_trace_id, trace
-from src.agents.mcp import MCPServerStdio
 
-#中文注释
-load_dotenv()  # load environment variables from .env
-http_client = httpx.AsyncClient(verify=False)
-openai_client = AsyncOpenAI(
-    base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
-    api_key="sk-5d0df6fb5e864785947f2e4b60adb763",
-    http_client=http_client
-)
+async def main():
+    current_dir = os.path.dirname(os.path.abspath(__file__))
+    samples_dir = os.path.join(current_dir, "file")
+    http_client = httpx.AsyncClient(verify=False)
+    openai_client = AsyncOpenAI(
+        base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        api_key="sk-5d0df6fb5e864785947f2e4b60adb763",
+        http_client=http_client
+    )
+    # 创建一个mcp stdio servers
+    async with MCPServerStdio(
+        params={
+            "command": "npx",
+            "args": ["-y", "@modelcontextprotocol/server-filesystem", samples_dir],
+        }
+    ) as mcp_server_1:
 
-async def run(mcp_server: MCPServerStdio,):
+        # 可以将MCP服务器添加到代理。每次代理运行时，代理SDK都会调用MCP服务器上的list_tools()。这使得LLM知道MCP服务器的工具。当LLM从MCP服务器调用工具时，SDK会调用该服务器上的call_tool()。
         agent = Agent(
-            name="问答智能体",
-            instructions="""
-            你是一个问答智能体，你将阅读本地文件，回答用户的问题。。
-        
-            你的任务是：
-            1、当你需要时打开本地文件时，调用工具阅读本地文件。
-            2、并以markdown 的格式输出问题。
-            """,
+            name="Assistant",
+            instructions="Use the tools to achieve the task ",
+            mcp_servers=[mcp_server_1],
             model=OpenAIChatCompletionsModel(
                 model="qwen-72b-chat",
                 openai_client=openai_client
-            ),
-            mcp_server=[mcp_server]
-
+            )
 
         )
-        # List the files it can read
-        message = "今天天气怎么样？"
-        print(f"Running: {message}")
-        result = await Runner.run(starting_agent=agent, input=message)
-        print(result.final_output)
-
-# MCPClient类
-async def main(path):
-    async with MCPServerStdio(
-            name="Filesystem Server, via npx",
-            params={
-                "command": "npx",
-                "args": ["-y", "@modelcontextprotocol/server-filesystem", path],
-            },
-    ) as server:
-        await run(server)
+        result = Runner.run_streamed(agent, input="Please tell me 5 jokes and save to test.txt")
+        async for event in result.stream_events():
+            if event.type == "raw_response_event" and isinstance(event.data, ResponseTextDeltaEvent):
+                print(event.data.delta, end="", flush=True)
 
 if __name__ == "__main__":
-    asyncio.run(main("E:\PycharmProjects\openai-agents-python\examples\AI customer_service\mcp\test.txt"))
+    # if not shutil.which("npx"):
+    #     raise RuntimeError("npx is not installed. Please install it with `npm install -g npx`.")
+    asyncio.run(main())

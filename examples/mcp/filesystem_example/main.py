@@ -35,7 +35,8 @@ async def run(mcp_server: MCPServer):
 async def main():
     current_dir = os.path.dirname(os.path.abspath(__file__))
     samples_dir = os.path.join(current_dir, "sample_files")
-
+    if not os.path.exists(samples_dir):
+        raise FileNotFoundError(f"Sample files directory not found: {samples_dir}")
     async with MCPServerStdio(
         name="Filesystem Server, via npx",
         params={
