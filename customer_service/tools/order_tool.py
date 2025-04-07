@@ -1,8 +1,8 @@
 from agents import function_tool
 
 
-@function_tool
-async def logistics_query(intent_result: dict) -> str:
+
+def logistics_query(intent_result: dict) -> str:
     """
     调用查询物流信息的接口
     """
@@ -11,8 +11,7 @@ async def logistics_query(intent_result: dict) -> str:
         return f"订单{order_id}的物流信息是：。。。。"
     return "intent_result must be dict"
 
-@function_tool
-async def mock_refund_apply(intent_result: dict) -> str:
+def mock_refund_apply(intent_result: dict) -> str:
     """
     退货
     """
